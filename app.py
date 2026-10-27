@@ -5,6 +5,7 @@ from PIL import Image, ImageOps
 
 from isic_service import search_isic_gallery
 from model_utils import MODEL_PATH, check_image_quality, classify_skin_lesion, load_classification_model
+from skin_gate import MESSAGES as GATE_MESSAGES, check_skin, load_gate_model
 
 st.set_page_config(page_title="Dermoscan", page_icon="🩺", layout="wide",
                     initial_sidebar_state="collapsed")
@@ -222,6 +223,11 @@ def get_model():
     return load_classification_model()
 
 
+@st.cache_resource
+def get_gate_model():
+    return load_gate_model()
+
+
 @st.cache_data(show_spinner=False, ttl=3600)
 def cached_search(diagnosis: str):
     samples, error = search_isic_gallery(diagnosis=diagnosis, limit=4)
@@ -231,6 +237,7 @@ def cached_search(diagnosis: str):
 
 
 model = get_model()
+gate_model = get_gate_model()
 
 col_h1, col_h2 = st.columns([1.15, 1], vertical_alignment="center", gap="large")
 with col_h1:
@@ -266,27 +273,41 @@ with tab1:
         if source is not None:
             image = ImageOps.exif_transpose(Image.open(source)).convert("RGB")
             issues = check_image_quality(image)
-            with st.spinner("Analisando a imagem..."):
-                r = classify_skin_lesion(image, model)
-
-            st.write("")
-            col_img, col_res = st.columns([1, 1.15], gap="large")
-            with col_img:
-                st.image(image, use_container_width=True)
-            with col_res:
-                title, text, color = LEVELS[r["level"]]
-                st.markdown(f'<div class="result" style="--c:{color}"><h2>{title}</h2><p>{text}</p></div>',
-                            unsafe_allow_html=True)
-                st.markdown(risk_scale(r["prob_melanoma"], r["threshold"]), unsafe_allow_html=True)
-                st.markdown(
-                    f'<p class="detail">Probabilidade estimada de melanoma: <b>{pct(r["prob_melanoma"])}</b>. '
-                    f'O alerta dispara a partir de {pct(r["threshold"])}, um limiar baixo de propósito para '
-                    f'não deixar passar casos, o que gera alarmes falsos. A escala amplia a faixa das probabilidades baixas.</p>',
-                    unsafe_allow_html=True)
-                if issues:
-                    st.markdown(f'<div class="notice">Qualidade da imagem: {", ".join(issues)}. '
-                                'O resultado pode ser pouco confiável. Tente de novo com mais luz e foco.</div>',
+            gate = check_skin(image, gate_model)
+            if gate["label"] != "skin":
+                st.write("")
+                c1, c2 = st.columns([1, 1.15], gap="large")
+                with c1:
+                    st.image(image, use_container_width=True)
+                with c2:
+                    g_title, g_text = GATE_MESSAGES[gate["label"]]
+                    st.markdown(f'<div class="result" style="--c:#A8742A"><h2>{g_title}</h2><p>{g_text}</p></div>',
                                 unsafe_allow_html=True)
+                    if gate["method"] == "heuristic":
+                        st.markdown('<p class="detail">Verificação por cor de pele (modelo de pele/tatuagem ainda não treinado, '
+                                    'então tatuagens não são detectadas).</p>', unsafe_allow_html=True)
+            else:
+                with st.spinner("Analisando a imagem..."):
+                    r = classify_skin_lesion(image, model)
+
+                st.write("")
+                col_img, col_res = st.columns([1, 1.15], gap="large")
+                with col_img:
+                    st.image(image, use_container_width=True)
+                with col_res:
+                    title, text, color = LEVELS[r["level"]]
+                    st.markdown(f'<div class="result" style="--c:{color}"><h2>{title}</h2><p>{text}</p></div>',
+                                unsafe_allow_html=True)
+                    st.markdown(risk_scale(r["prob_melanoma"], r["threshold"]), unsafe_allow_html=True)
+                    st.markdown(
+                        f'<p class="detail">Probabilidade estimada de melanoma: <b>{pct(r["prob_melanoma"])}</b>. '
+                        f'O alerta dispara a partir de {pct(r["threshold"])}, um limiar baixo de propósito para '
+                        f'não deixar passar casos, o que gera alarmes falsos. A escala amplia a faixa das probabilidades baixas.</p>',
+                        unsafe_allow_html=True)
+                    if issues:
+                        st.markdown(f'<div class="notice">Qualidade da imagem: {", ".join(issues)}. '
+                                    'O resultado pode ser pouco confiável. Tente de novo com mais luz e foco.</div>',
+                                    unsafe_allow_html=True)
         else:
             st.markdown(STEPS_HTML, unsafe_allow_html=True)
 
