@@ -1,3 +1,10 @@
 venv/
-data/
 __pycache__/
+
+# datasets (pesados, não vão pro GitHub)
+data/
+gate_data/
+gate_raw/
+
+# modelos descartados
+models/*_ruim.pt

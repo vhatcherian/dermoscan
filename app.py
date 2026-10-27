@@ -1,32 +1,29 @@
 import math
-
 import torch
-
 import streamlit as st
 from PIL import Image, ImageOps
 
-from image_gate import check_lesion
 from isic_service import search_isic_gallery
 from model_utils import MODEL_PATH, check_image_quality, classify_skin_lesion, load_classification_model
 
 st.set_page_config(page_title="Dermoscan", page_icon="🩺", layout="wide",
-                   initial_sidebar_state="collapsed")
+                    initial_sidebar_state="collapsed")
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Manrope:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap');
 :root { --ink:#111C2D; --muted:#5A6778; --line:#D9D5CD; --teal:#1E3A5F; --blush:#EBD7D0; }
-html, body, .stApp, [class*="st-"] { font-family:'Manrope', system-ui, sans-serif; }
+html, body, .stApp { font-family:'Manrope', system-ui, sans-serif; }
 .stApp { background:radial-gradient(circle at 92% -4%, #EBD7D0 0, rgba(235,215,208,0) 36%), #ECEAE5; color:var(--ink); }
 #MainMenu, footer, header[data-testid="stHeader"] { visibility:hidden; height:0; }
 .block-container { max-width:1080px; padding-top:2.6rem; padding-bottom:4rem; }
 
 .hero { padding:0 0 2rem 0; }
-.hero h1 { font-family:'Cormorant Garamond', Georgia, serif; font-weight:600; font-size:4rem;
-           letter-spacing:-0.01em; line-height:1; margin:0 0 .6rem 0; color:var(--teal); }
+.hero h1 { font-family:'Manrope', system-ui, sans-serif; font-weight:700; font-size:3.5rem;
+            letter-spacing:-0.01em; line-height:1.1; margin:0 0 .6rem 0; color:var(--teal); }
 .hero p { font-size:1.12rem; color:var(--muted); margin:0; max-width:34rem; line-height:1.55; }
 .hero .note { margin-top:1.1rem; display:inline-block; font-size:.88rem; color:var(--ink);
-              background:var(--blush); padding:.4rem .9rem; border-radius:999px; }
+             background:var(--blush); padding:.4rem .9rem; border-radius:999px; }
 
 button[data-baseweb="tab"] { font-weight:500; font-size:1.02rem; color:var(--muted); padding-left:0; padding-right:1.6rem; }
 button[data-baseweb="tab"][aria-selected="true"] { color:var(--ink); }
@@ -39,8 +36,8 @@ div[data-baseweb="tab-border"] { background:var(--line); }
 [data-testid="stImage"] img { border-radius:18px; }
 
 .result { border-left:3px solid var(--c); padding:4px 0 4px 22px; margin:0 0 2rem 0; }
-.result h2 { font-family:'Cormorant Garamond', Georgia, serif; font-weight:600; font-size:2.5rem;
-             line-height:1.05; color:var(--c); margin:0 0 .5rem 0; }
+.result h2 { font-family:'Manrope', system-ui, sans-serif; font-weight:700; font-size:2.2rem;
+               line-height:1.15; color:var(--c); margin:0 0 .5rem 0; }
 .result p { margin:0; color:var(--ink); line-height:1.6; max-width:30rem; }
 
 .scale { position:relative; padding-top:38px; margin:0 14px; }
@@ -56,12 +53,12 @@ div[data-baseweb="tab-border"] { background:var(--line); }
 .meta { font-size:.88rem; color:var(--muted); line-height:1.5; margin:.3rem 0 0 0; }
 .meta b { color:var(--ink); font-weight:600; }
 .fine { margin-top:3rem; padding-top:1.2rem; border-top:1px solid var(--line); font-size:.85rem; color:var(--muted); line-height:1.6; }
-h3 { font-family:'Cormorant Garamond', Georgia, serif; font-weight:600; font-size:1.8rem; color:var(--teal); }
+h3 { font-family:'Manrope', system-ui, sans-serif; font-weight:700; font-size:1.5rem; color:var(--teal); }
 
 .hero-art svg { width:100%; max-width:380px; display:block; margin:0 auto; }
 .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin:.4rem 0 0 0; }
 .stat { background:#FBFAF7; border:1px solid var(--line); border-radius:20px; padding:1.2rem 1.2rem 1rem 1.2rem; }
-.stat .num { font-family:'Manrope', system-ui, sans-serif; font-weight:600; font-size:2.3rem; letter-spacing:-0.02em; font-variant-numeric:lining-nums tabular-nums; line-height:1.05; color:var(--teal); }
+.stat .num { font-family:'Manrope', system-ui, sans-serif; font-weight:700; font-size:2.3rem; letter-spacing:-0.02em; font-variant-numeric:lining-nums tabular-nums; line-height:1.05; color:var(--teal); }
 .stat .lab { font-size:.88rem; color:var(--muted); margin-top:.45rem; line-height:1.35; }
 .stat .bar { height:5px; border-radius:999px; background:#E2DED6; margin-top:.9rem; overflow:hidden; }
 .stat .bar i { display:block; height:100%; background:var(--teal); border-radius:999px; }
@@ -69,7 +66,7 @@ h3 { font-family:'Cormorant Garamond', Georgia, serif; font-weight:600; font-siz
 .grid5 { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-top:1rem; }
 .card { background:#FBFAF7; border:1px solid var(--line); border-radius:20px; padding:1.2rem; }
 .card svg { width:56px; height:56px; display:block; margin-bottom:.7rem; }
-.card h4 { font-family:'Cormorant Garamond', Georgia, serif; font-weight:600; font-size:1.4rem; margin:0 0 .3rem 0; color:var(--ink); }
+.card h4 { font-family:'Manrope', system-ui, sans-serif; font-weight:600; font-size:1.2rem; margin:0 0 .3rem 0; color:var(--ink); }
 .card p { margin:0; font-size:.9rem; color:var(--muted); line-height:1.5; }
 .badge { width:34px; height:34px; border-radius:50%; background:var(--teal); color:#fff; display:flex;
          align-items:center; justify-content:center; font-weight:600; margin-bottom:.8rem; }
@@ -77,7 +74,7 @@ h3 { font-family:'Cormorant Garamond', Georgia, serif; font-weight:600; font-siz
 .chart svg { width:100%; height:auto; display:block; margin-top:.6rem; }
 .chart svg text { font-family:'Manrope', system-ui, sans-serif; }
 @media (max-width:820px) { .stats { grid-template-columns:repeat(2,1fr); } .grid3, .grid2 { grid-template-columns:1fr; }
-                           .grid5 { grid-template-columns:repeat(2,1fr); } }
+                            .grid5 { grid-template-columns:repeat(2,1fr); } }
 </style>
 """, unsafe_allow_html=True)
 
@@ -156,7 +153,6 @@ ABCDE_HTML = (
     '</div>')
 
 
-# Histórico do treino de 5 épocas no Colab. Se treinar de novo, atualize estes valores.
 HISTORY = {"loss": [0.4661, 0.3743, 0.3289, 0.2751, 0.2461],
            "auc": [0.899, 0.898, 0.896, 0.895, 0.902]}
 
@@ -230,7 +226,7 @@ def get_model():
 def cached_search(diagnosis: str):
     samples, error = search_isic_gallery(diagnosis=diagnosis, limit=4)
     if error:
-        raise RuntimeError(error)  # exceções não são guardadas no cache
+        raise RuntimeError(error)
     return samples
 
 
@@ -269,48 +265,28 @@ with tab1:
 
         if source is not None:
             image = ImageOps.exif_transpose(Image.open(source)).convert("RGB")
-            gate = check_lesion(image)
-            force = False
-            if not gate["ok"]:
-                st.write("")
-                col_i, col_m = st.columns([1, 1.15], gap="large")
-                with col_i:
-                    st.image(image, width="stretch")
-                with col_m:
-                    st.markdown('<div class="result" style="--c:#A8742A"><h2>Não foi possível analisar esta imagem</h2>'
-                                f'<p>{gate["message"]}</p></div>', unsafe_allow_html=True)
-                    with st.expander("Detalhes técnicos da verificação"):
-                        m = gate["metrics"]
-                        st.caption(f'Motivo: {gate["status"]} · pele ao redor: {m.get("skin", 0):.2f} · '
-                                   f'contraste: {m.get("contrast", 0):.0f} · textura: {m.get("texture", 0):.1f} · '
-                                   f'nitidez da borda: {m.get("sharp", 0):.2f}')
-                        force = st.checkbox("Analisar mesmo assim (resultado pode não ser confiável)")
-            if gate["ok"] or force:
-                issues = check_image_quality(image)
-                with st.spinner("Analisando a imagem..."):
-                    r = classify_skin_lesion(image, model)
+            issues = check_image_quality(image)
+            with st.spinner("Analisando a imagem..."):
+                r = classify_skin_lesion(image, model)
 
-                st.write("")
-                col_img, col_res = st.columns([1, 1.15], gap="large")
-                with col_img:
-                    st.image(image, width="stretch")
-                with col_res:
-                    if not gate["ok"]:
-                        st.markdown('<div class="notice">Análise forçada: a verificação da imagem falhou, então o resultado não é confiável.</div>',
-                                    unsafe_allow_html=True)
-                    title, text, color = LEVELS[r["level"]]
-                    st.markdown(f'<div class="result" style="--c:{color}"><h2>{title}</h2><p>{text}</p></div>',
+            st.write("")
+            col_img, col_res = st.columns([1, 1.15], gap="large")
+            with col_img:
+                st.image(image, use_container_width=True)
+            with col_res:
+                title, text, color = LEVELS[r["level"]]
+                st.markdown(f'<div class="result" style="--c:{color}"><h2>{title}</h2><p>{text}</p></div>',
+                            unsafe_allow_html=True)
+                st.markdown(risk_scale(r["prob_melanoma"], r["threshold"]), unsafe_allow_html=True)
+                st.markdown(
+                    f'<p class="detail">Probabilidade estimada de melanoma: <b>{pct(r["prob_melanoma"])}</b>. '
+                    f'O alerta dispara a partir de {pct(r["threshold"])}, um limiar baixo de propósito para '
+                    f'não deixar passar casos, o que gera alarmes falsos. A escala amplia a faixa das probabilidades baixas.</p>',
+                    unsafe_allow_html=True)
+                if issues:
+                    st.markdown(f'<div class="notice">Qualidade da imagem: {", ".join(issues)}. '
+                                'O resultado pode ser pouco confiável. Tente de novo com mais luz e foco.</div>',
                                 unsafe_allow_html=True)
-                    st.markdown(risk_scale(r["prob_melanoma"], r["threshold"]), unsafe_allow_html=True)
-                    st.markdown(
-                        f'<p class="detail">Probabilidade estimada de melanoma: <b>{pct(r["prob_melanoma"])}</b>. '
-                        f'O alerta dispara a partir de {pct(r["threshold"])}, um limiar baixo de propósito para '
-                        f'não deixar passar casos, o que gera alarmes falsos. A escala amplia a faixa das probabilidades baixas.</p>',
-                        unsafe_allow_html=True)
-                    if issues:
-                        st.markdown(f'<div class="notice">Qualidade da imagem: {", ".join(issues)}. '
-                                    'O resultado pode ser pouco confiável. Tente de novo com mais luz e foco.</div>',
-                                    unsafe_allow_html=True)
         else:
             st.markdown(STEPS_HTML, unsafe_allow_html=True)
 
@@ -326,7 +302,7 @@ with tab2:
     with col_f1:
         diag = st.selectbox("Condição", ["melanoma", "nevus"])
     with col_f2:
-        go = st.button("Buscar exemplos", width="stretch")
+        go = st.button("Buscar exemplos", use_container_width=True)
 
     if go:
         samples, error = [], None
@@ -342,7 +318,7 @@ with tab2:
             cols = st.columns(len(samples), gap="medium")
             for col, s in zip(cols, samples):
                 with col:
-                    st.image(s["image"], width="stretch")
+                    st.image(s["image"], use_container_width=True)
                     sex = SEX.get(str(s["sex"]).lower(), "sexo não informado")
                     age_txt = f'{s["age"]} anos' if s["age"] != "N/A" else "idade não informada"
                     site_html = f'{s["anatom_site"]}<br>' if s["anatom_site"] not in ("N/A", None, "") else ""
